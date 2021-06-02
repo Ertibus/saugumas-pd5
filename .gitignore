@@ -3,6 +3,8 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+giti_*
+
 # C extensions
 *.so
 
