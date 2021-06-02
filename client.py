@@ -67,21 +67,100 @@ def internal_logic(args:list):
         else:
             print(f"[X] File {args[1]} not found")
 
-    if args[0] == "--send" or args[0] == "-s":
-        messanger(str(args[1:]))
+    elif args[0] == "--send" or args[0] == "-s":
+        message_str=""
+        for arg in args[1:]:
+            message_str+=arg+' '
+        messanger(message_str)
 
-    if args[0] == "--recv" or args[0] == "-d":
+    elif args[0] == "--validate" or args[0] == "-v":
         listener()
 
+    elif args[0] == 'quit':
+        print("[~] Goodbye!")
+        client_socket.close()
+        os._exit(0)
+
+    elif args[0] == "--help" or args[0] == "-h" or args[0] == 'help':
+        print("\n\
+        --help\t\t-h\t \t=> show this\n\
+        --read\t\t-r\t path\t=> read and send file from _path_\n\
+        --send\t\t-s\t msg\t=> send message\n\
+        --validate\t-v\t\t=> requests/validates RSA signature from server \n\
+        quit\t\t \t=> quits client\n\
+        ")
     else:
         print(f"[X] Command: {args[0]} not recognised")
 
 def listener():
-    print("Confirming connection with server...")
+    global client_socket
+    global separator
+    global buffer_size
+
+    print("[*] Confirming connection with server...")
     client_socket.send("retrv".encode('utf-8'))
     response = client_socket.recv(buffer_size).decode('utf-8')
     if response != 'retrv':
         raise Exception("Wrong response to header send")
+    # HEADER
+    header = client_socket.recv(buffer_size).decode('utf-8')
+    header = header.split(separator)
+
+    message_size = int(header[0])
+    signature_size = int(header[1])
+    kpub = (int(header[2]), int(header[3]))
+    client_socket.send("down".encode('utf-8'))
+    # FILES
+    message = recieve_file(client_socket, message_size, "new message").decode('utf-8')
+    client_socket.send("down".encode('utf-8'))
+
+    signature = numpy.frombuffer(recieve_file(client_socket, signature_size, "new signature"), dtype=numpy.int64)
+    client_socket.send("down".encode('utf-8'))
+
+    print(f"\n[#] Public key: {kpub}\n")
+
+    print(f"\n================================[ MESSAGE START\n\
+        \n{message}\
+        \n================================[ MESSAGE END\n")
+
+    print(f"\n================================[ SIGNATURE START\n\
+        \n{signature}\
+        \n================================[ SIGNATURE END\n")
+
+    print("[*] Doing validation...")
+    validation_msg = crypto.decrypt(signature, kpub)
+    if(validation_msg == message):
+        print("[O] Signature is valid!")
+    else:
+        print("[X] Signature is invalid!")
+        diff = numpy.array([], dtype=numpy.int64)
+        for i in range(len(message)):
+            if message[i] != validation_msg[i]:
+                diff = numpy.append(diff, signature[i] * -1)
+            else:
+                diff = numpy.append(diff, signature[i])
+        print(f"\n================================[ SIGNATURE DIFFERENCE START\n\
+            \n{diff}\
+            \n================================[ SIGNATURE DIFFERENCE END\n")
+
+
+def recieve_file(connection, filesize:int, desc:str='new data'):
+    global buffer_size
+    global recv_lock
+
+
+    downloaded = 0
+    with io.BytesIO() as msg_stream:
+        with tqdm.tqdm(range(filesize), f'Receiving {desc}', unit="B", unit_scale=True, unit_divisor=1024) as progress:
+            while downloaded < filesize:
+                r_buffer = connection.recv(buffer_size)
+                msg_stream.write(r_buffer)
+                progress.update(len(r_buffer))
+                downloaded += len(r_buffer)
+
+        return msg_stream.getvalue()
+
+
 # Send message : message, Kpub, s
 def messanger(message:str):
     global client_socket
@@ -93,7 +172,6 @@ def messanger(message:str):
 
     Kpub, Kpvt = crypto.calculate_keys(crypto.FIRST_PRIME_LIST[random.randint(0, 99)].item(), crypto.FIRST_PRIME_LIST[random.randint(0, 99)].item())
 
-    #E
     signature = crypto.encrypt(message, Kpvt)
 
     print(f"\n================================[ SIGNATURE START\n\

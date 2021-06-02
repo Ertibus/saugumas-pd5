@@ -19,7 +19,7 @@ FIRST_PRIME_LIST = numpy.array([
 
 def encrypt(text:str, Kpub:tuple):
     enc_val = numpy.array([], dtype='int64')
-    with tqdm.tqdm(text, "Using crpytology on message") as pbar:
+    with tqdm.tqdm(text, "Using cryptology on message") as pbar:
         for c in pbar:
             enc_val = numpy.append(enc_val, do_crypto(ord(c), Kpub))
     return enc_val

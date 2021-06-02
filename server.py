@@ -1,10 +1,12 @@
 # ./server.py
 #   Server file. Handles clients, processes requests
-
+import os
 import time
 import socket
 import threading
 import io
+import random
+
 import tqdm
 import numpy
 
@@ -53,44 +55,51 @@ def client_logic(connection_info):
     global print_lock
     global saved_message
     global saved_signature
+    global saved_kpub
 
     connection = connection_info['connection']
     address = connection_info['address']
 
     while True:
         mesg = connection.recv(buffer_size).decode('utf-8')
-        if mesg == 'retrv':
+        if not mesg:
+            break
+        elif mesg == 'retrv':
+            if not saved_message:
+                print("Server doesn't have a message")
+                connection.send("fail".encode('utf-8'))
+                continue
             connection.send("retrv".encode('utf-8'))
             with io.BytesIO() as s_message:
                 with io.BytesIO() as s_signature:
                     print("Packaging message for sending...")
-                    s_message.write(message.encode('utf-8'))
+                    s_message.write(saved_message.encode('utf-8'))
                     print("Packaging signature for sending...")
-                    s_signature.write(signature.tobytes())
+                    s_signature.write(saved_signature.tobytes())
 
                     print("Sending header...")
-                    client_socket.send(f"\
+                    connection.send(f"\
                     {s_message.getbuffer().nbytes}\
                     {separator}\
                     {s_signature.getbuffer().nbytes}\
                     {separator}\
-                    {Kpub[0]}\
+                    {saved_kpub[0]}\
                     {separator}\
-                    {Kpub[1]}".encode('utf-8')
+                    {saved_kpub[1]}".encode('utf-8')
                     )
 
-                    response = client_socket.recv(buffer_size).decode('utf-8')
+                    response = connection.recv(buffer_size).decode('utf-8')
                     if response != 'down':
                         raise Exception("Wrong response to message send")
 
                     print("Sending data...")
-                    client_socket.sendall(s_message.getvalue())
-                    response = client_socket.recv(buffer_size).decode('utf-8')
+                    connection.sendall(s_message.getvalue())
+                    response = connection.recv(buffer_size).decode('utf-8')
                     if response != 'down':
                         raise Exception("Wrong response to message send")
 
-                    client_socket.sendall(s_signature.getvalue())
-                    response = client_socket.recv(buffer_size).decode('utf-8')
+                    connection.sendall(s_signature.getvalue())
+                    response = connection.recv(buffer_size).decode('utf-8')
                     if response != 'down':
                         raise Exception("Wrong response to signature send")
 
@@ -128,6 +137,8 @@ def client_logic(connection_info):
                 \n================================[ SIGNATURE END\n")
 
             print_lock.release()
+        else:
+            print(f"Unknown Message: {mesg}")
 
 def recieve_file(connection, filesize:int, desc:str='new data'):
     global buffer_size
@@ -183,6 +194,7 @@ if __name__ == '__main__':
     while True:
         ipt = input("server <>> ")
         if ipt == 'quit':
+            print("[~] Goodbye!")
             for connection in client_sockets:
                 connection.close()
             server_socket.close()
@@ -190,6 +202,7 @@ if __name__ == '__main__':
                 recv_lock = threading.Lock() 
             if print_lock.locked():
                 print_lock = threading.Lock() 
+            os._exit(0)
             break
         elif ipt == 'restart':
             try:
@@ -202,4 +215,27 @@ if __name__ == '__main__':
             except Exception as err:
                 print(err)
         elif ipt == 'show':
-            pass
+            print_lock.acquire()
+
+            print(f"\n[#] Public key: {saved_kpub}\n")
+
+            print(f"\n================================[ MESSAGE START\n\
+                \n{saved_message}\
+                \n================================[ MESSAGE END\n")
+
+            print(f"\n================================[ SIGNATURE START\n\
+                \n{saved_signature}\
+                \n================================[ SIGNATURE END\n")
+
+            print_lock.release()
+        elif ipt.split(' ')[0] == 'echo':
+            print(ipt.split(' ',1)[1:])
+
+        elif ipt.split(' ')[0] == 'allrng':
+            saved_signature = numpy.random.randint(65525, size=len(saved_signature))
+
+        elif ipt.split(' ')[0] == 'rng':
+            arr = numpy.copy(saved_signature)
+            for y in range(int(ipt.split(' ')[1])):
+                arr[random.randint(0, len(saved_signature))] = random.randint(0, 65525)
+            saved_signature = arr
