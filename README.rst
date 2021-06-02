@@ -25,3 +25,5 @@ Reikalavimai trečiajai aplikacijai
 
 Dependencies
 ------------
+numpy==1.20.3
+tqdm==4.61.0
