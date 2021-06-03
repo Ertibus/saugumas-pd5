@@ -76,6 +76,9 @@ def internal_logic(args:list):
     elif args[0] == "--validate" or args[0] == "-v":
         listener()
 
+    elif args[0] == "--clear" or args[0] == "-c":
+        print("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n")
+
     elif args[0] == 'quit':
         print("[~] Goodbye!")
         client_socket.close()
@@ -111,10 +114,10 @@ def listener():
     kpub = (int(header[2]), int(header[3]))
     client_socket.send("down".encode('utf-8'))
     # FILES
-    message = recieve_file(client_socket, message_size, "new message").decode('utf-8')
+    message = recieve_file(client_socket, message_size, "message").decode('utf-8')
     client_socket.send("down".encode('utf-8'))
 
-    signature = numpy.frombuffer(recieve_file(client_socket, signature_size, "new signature"), dtype=numpy.int64)
+    signature = numpy.frombuffer(recieve_file(client_socket, signature_size, "signature"), dtype=numpy.int64)
     client_socket.send("down".encode('utf-8'))
 
     print(f"\n[#] Public key: {kpub}\n")
